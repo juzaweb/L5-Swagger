@@ -59,7 +59,7 @@ class TestCase extends OrchestraTestCase
     }
 
     /**
-     * @param Application $app
+     * @param  Application  $app
      * @return array
      */
     protected function getPackageProviders($app): array
@@ -93,6 +93,7 @@ class TestCase extends OrchestraTestCase
      * Get path for json docs file.
      *
      * @return string
+     *
      * @throws L5SwaggerException
      */
     protected function jsonDocsFile(): string
@@ -167,18 +168,20 @@ class TestCase extends OrchestraTestCase
     }
 
     /**
-     * @param string $fileName
-     * @param string $type
+     * @param  string  $fileName
+     * @param  string  $type
      */
     protected function setCustomDocsFileName(string $fileName, string $type = 'json'): void
     {
         $cfg = config('l5-swagger.documentations.default');
 
         if ($type === 'json') {
+            $cfg['paths']['format_to_use_for_docs'] = $type;
             $cfg['paths']['docs_json'] = $fileName;
         }
 
         if ($type === 'yaml') {
+            $cfg['paths']['format_to_use_for_docs'] = $type;
             $cfg['paths']['docs_yaml'] = $fileName;
         }
 

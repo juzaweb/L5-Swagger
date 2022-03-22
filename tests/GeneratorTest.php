@@ -3,7 +3,10 @@
 namespace Tests;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use L5Swagger\Exceptions\L5SwaggerException;
+use OpenApi\Analysers\TokenAnalyser;
+use OpenApi\Processors\CleanUnmerged;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Yaml;
 
@@ -17,15 +20,75 @@ class GeneratorTest extends TestCase
         $config = $this->configFactory->documentationConfig();
         $docs = $config['paths']['docs'];
 
-        mkdir($docs, 0555);
-        chmod($docs, 0555);
+        File::shouldReceive('exists')
+            ->once()
+            ->with($docs)
+            ->andReturn(true);
+
+        File::shouldReceive('isWritable')
+            ->once()
+            ->with($docs)
+            ->andReturn(false);
 
         $this->expectException(L5SwaggerException::class);
         $this->expectExceptionMessage('Documentation storage directory is not writable');
 
         $this->generator->generateDocs();
+    }
 
-        chmod($docs, 0777);
+    /** @test **/
+    public function itWillCreateDocumentationDirIfItIsWritable(): void
+    {
+        $this->setAnnotationsPath();
+
+        $config = $this->configFactory->documentationConfig();
+        $docs = $config['paths']['docs'];
+
+        File::shouldReceive('exists')
+            ->times(3)
+            ->with($docs)
+            ->andReturnValues([true, false, true]);
+
+        File::shouldReceive('isWritable')
+            ->once()
+            ->with($docs)
+            ->andReturn(true);
+
+        File::shouldReceive('makeDirectory')
+            ->once()
+            ->with($docs);
+
+        mkdir($docs, 0777);
+
+        $this->generator->generateDocs();
+    }
+
+    /** @test **/
+    public function itThrowsExceptionIfDocumentationDirWasNotCreated(): void
+    {
+        $this->setAnnotationsPath();
+
+        $config = $this->configFactory->documentationConfig();
+        $docs = $config['paths']['docs'];
+
+        File::shouldReceive('exists')
+            ->times(3)
+            ->with($docs)
+            ->andReturnValues([true, false, false]);
+
+        File::shouldReceive('isWritable')
+            ->once()
+            ->with($docs)
+            ->andReturn(true);
+
+        File::shouldReceive('makeDirectory')
+            ->once()
+            ->with($docs);
+
+        $this->expectException(L5SwaggerException::class);
+        $this->expectExceptionMessage('Documentation storage directory could not be created');
+
+        $this->generator->generateDocs();
     }
 
     /** @test */
@@ -96,7 +159,11 @@ class GeneratorTest extends TestCase
             __DIR__.'/storage/annotations/OpenApi/Clients',
         ];
 
-        $cfg['scanOptions']['pattern'] = 'Anotations.*';
+        $cfg['scanOptions']['pattern'] = 'L5SwaggerAnnotationsExample*.*';
+        $cfg['scanOptions']['analyser'] = new TokenAnalyser;
+        $cfg['scanOptions']['processors'] = [
+            new CleanUnmerged,
+        ];
 
         config(['l5-swagger' => [
             'default' => 'default',
@@ -116,7 +183,7 @@ class GeneratorTest extends TestCase
             ->assertSee('L5 Swagger')
             ->assertSee('my-default-host.com')
             ->assertSee('getProjectsList')
-            ->assertDontSee('getProductsList')
+            ->assertSee('getProductsList')
             ->assertDontSee('getClientsList')
             ->assertStatus(200);
     }
